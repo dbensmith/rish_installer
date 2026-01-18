@@ -16,10 +16,15 @@ This script simplifies the process.
 The main benefit is that after installation you can run `rish` directly instead of using `~/rish`, saving time and avoiding manual errors.
 
 ## Installation
-Run the following inside Termux:
+Run the following inside Termux to install/reinstall:
 ```bash
-bash <(curl -fsSL https://bit.ly/rish3266)
+bash <(curl -fsSL tinyurl.com/rish3266)
 ```
+If you want to uninstall, run this:
+```bash
+bash -s -- --uninstall < <(curl -fsSL tinyurl.com/rish3266)
+```
+
 **Requirements:**
 - Termux environment
 - Internet connection
