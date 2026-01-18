@@ -46,7 +46,7 @@ if [ "$ACTION" = "uninstall" ]; then
     exit 0
   fi
   echo -ne "${Y}[?]${X} rish is installed. Uninstall? [y/N]: "
-  read -r c
+  read -r c < /dev/tty
   case "$c" in
     y|Y)
       hide_cursor
@@ -66,7 +66,7 @@ done
 
 if [ -f "$RISH" ] && [ "$ACTION" != "reinstall" ]; then
   echo -ne "${Y}[?]${X} rish already installed. Reinstall? [y/N]: "
-  read -r c
+  read -r c < /dev/tty
   case "$c" in
     y|Y) ACTION="reinstall" ;;
     *) msg "Canceled"; exit 0 ;;
