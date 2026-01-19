@@ -1,5 +1,5 @@
 # Shizuku Rish Installer for Termux
-![Stars](https://img.shields.io/github/stars/merbah3266/rish_installer?style=flat-square&color=black&labelColor=white)
+[![Stars](https://img.shields.io/github/stars/merbah3266/rish_installer?style=flat-square&color=black&labelColor=white)](https://github.com/merbah3266/rish_installer/stargazers)
 
 ## Overview
 This script automates the installation of `rish` in Termux.  
