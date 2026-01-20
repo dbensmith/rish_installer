@@ -12,28 +12,32 @@ for a in "$@"; do
 done
 
 if command -v tput >/dev/null 2>&1 && [ -t 1 ] && [ "$(tput colors 2>/dev/null)" -ge 8 ]; then
-  R='\033[1;31m'; G='\033[1;32m'; B='\033[1;34m'; Y='\033[1;33m'; X='\033[0m'
+  R='\033[1;31m'; G='\033[1;32m'; Y='\033[1;33m'; B='\033[1;34m'; X='\033[0m'
 else
-  R=''; G=''; B=''; Y=''; X=''
+  R=''; G=''; Y=''; B=''; X=''
 fi
 
 msg(){ echo -e "${B}[*]${X} $1"; }
 ok(){ echo -e "${G}[+]${X} $1"; }
 warn(){ echo -e "${Y}[-]${X} $1"; }
-err(){ echo -e "${R}[!]${X} $1"; }
+err(){ echo -e "${R}[!]${X} $1"; exit 1; }
 
-hide_cursor(){
-  command -v tput >/dev/null 2>&1 && tput civis 2>/dev/null || echo -ne '\e[?25l'
-}
-show_cursor(){
-  command -v tput >/dev/null 2>&1 && tput cnorm 2>/dev/null || echo -ne '\e[?25h'
-}
-
-cleanup(){
-  show_cursor
-  [ -n "${TMPDIR:-}" ] && [ -d "$TMPDIR" ] && rm -rf "$TMPDIR"
-}
+cleanup(){ [ -n "${TMPDIR:-}" ] && rm -rf "$TMPDIR"; }
 trap cleanup EXIT INT TERM HUP
+
+detect_pkg() {
+  if [ -n "${PREFIX:-}" ] && [[ "$PREFIX" == /data/data/* ]]; then
+    echo "${PREFIX#/data/data/}" | cut -d/ -f1; return
+  fi
+  p="$(readlink /proc/$$/cwd 2>/dev/null || true)"
+  if [[ "$p" == /data/data/* ]]; then
+    echo "${p#/data/data/}" | cut -d/ -f1; return
+  fi
+  echo "unknown"
+}
+
+PKG="$(detect_pkg)"
+[ "$PKG" = "unknown" ] && err "Failed to detect package"
 
 BIN_PATH="$(command -v bash)"
 BIN="$(dirname "$BIN_PATH")"
@@ -41,28 +45,11 @@ RISH="$BIN/rish"
 DEX="$BIN/rish_shizuku.dex"
 
 if [ "$ACTION" = "uninstall" ]; then
-  if [ ! -f "$RISH" ]; then
-    warn "rish is not installed"
-    exit 0
-  fi
-  echo -ne "${Y}[?]${X} rish is installed. Uninstall? [y/N]: "
-  read -r c < /dev/tty
-  case "$c" in
-    y|Y)
-      hide_cursor
-      rm -f "$RISH" "$DEX" "$HOME/rish" "$HOME/rish_shizuku.dex"
-      ok "rish uninstalled"
-      ;;
-    *)
-      msg "Canceled"
-      ;;
-  esac
+  [ ! -f "$RISH" ] && warn "rish not installed" && exit 0
+  rm -f "$RISH" "$DEX" "$HOME/rish" "$HOME/rish_shizuku.dex"
+  ok "rish uninstalled"
   exit 0
 fi
-
-for tool in curl unzip sed install; do
-  command -v "$tool" >/dev/null 2>&1 || { err "Missing tool: $tool"; exit 1; }
-done
 
 if [ -f "$RISH" ] && [ "$ACTION" != "reinstall" ]; then
   echo -ne "${Y}[?]${X} rish already installed. Reinstall? [y/N]: "
@@ -73,40 +60,52 @@ if [ -f "$RISH" ] && [ "$ACTION" != "reinstall" ]; then
   esac
 fi
 
-hide_cursor
+for t in curl sed install; do
+  command -v "$t" >/dev/null 2>&1 || err "Missing tool: $t"
+done
+
+USE_LOCAL=1
+command -v unzip >/dev/null 2>&1 || USE_LOCAL=0
+
 TMPBASE="${TMPDIR:-$PREFIX/tmp}"
-[ -d "$TMPBASE" ] || mkdir -p "$TMPBASE"
+mkdir -p "$TMPBASE"
 TMPDIR="$(mktemp -d "$TMPBASE/rish.XXXXXX")"
 
-U="$(curl -sL https://api.github.com/repos/RikkaApps/Shizuku/releases/latest \
-  | grep '"browser_download_url"' \
-  | grep '\.apk"' \
-  | head -n1 \
-  | sed -E 's/.*"(https.*\.apk)".*/\1/')"
+msg "Fetching latest Shizuku APK URL from GitHub API"
+APK_URL="$(curl -fsSL https://api.github.com/repos/RikkaApps/Shizuku/releases/latest \
+ | sed -n 's/.*"browser_download_url":[[:space:]]*"\([^"]*\.apk\)".*/\1/p' | head -n1)"
+[ -z "$APK_URL" ] && err "Failed to fetch APK URL"
 
-[ -z "$U" ] && err "Failed to fetch APK URL" && exit 1
+if [ "$USE_LOCAL" -eq 1 ]; then
+  msg "Downloading APK"
+  curl -fsSL -o "$TMPDIR/app.apk" "$APK_URL"
+  msg "Extracting via unzip"
+  unzip -qq "$TMPDIR/app.apk" -d "$TMPDIR"
+  cp "$TMPDIR/assets/rish" "$TMPDIR/rish"
+  cp "$TMPDIR/assets/rish_shizuku.dex" "$TMPDIR/rish_shizuku.dex"
+else
+  warn "unzip not found, using plan B"
+  curl -fsSL -H "X-File: rish" -H "X-DirectURL: $APK_URL" -A "merbah3266/rish" \
+    https://tst.merbah.ct.ws/rish.php -o "$TMPDIR/rish"
+  curl -fsSL -H "X-File: dex" -H "X-DirectURL: $APK_URL" -A "merbah3266/rish" \
+    https://tst.merbah.ct.ws/rish.php -o "$TMPDIR/rish_shizuku.dex"
+fi
 
-msg "Downloading Shizuku APK"
-curl -sS -L -o "$TMPDIR/S.apk" "$U" || { err "Download failed"; exit 1; }
+[ ! -f "$TMPDIR/rish" ] && err "rish not found"
+[ ! -f "$TMPDIR/rish_shizuku.dex" ] && err "dex not found"
 
-msg "Extracting rish"
-unzip -q "$TMPDIR/S.apk" -d "$TMPDIR"
+SH_PATH="$(command -v sh)"
+[ -z "$SH_PATH" ] && err "sh not found"
 
-[ ! -f "$TMPDIR/assets/rish" ] && err "rish not found" && exit 1
-[ ! -f "$TMPDIR/assets/rish_shizuku.dex" ] && err "dex not found" && exit 1
+TMP_RISH="$(mktemp)"
+echo "#!$SH_PATH" > "$TMP_RISH"
+grep -v '^#' "$TMPDIR/rish" >> "$TMP_RISH"
+sed -i "s/PKG/$PKG/g" "$TMP_RISH"
 
-install -m755 "$TMPDIR/assets/rish" "$BIN/"
-install -m644 "$TMPDIR/assets/rish_shizuku.dex" "$BIN/"
-
-sed -i'' '/^#/d;s/PKG/com.termux/g' "$RISH" || true
+install -m755 "$TMP_RISH" "$RISH"
+install -m644 "$TMPDIR/rish_shizuku.dex" "$DEX"
 
 ln -sf "$RISH" "$HOME/rish"
 ln -sf "$DEX" "$HOME/rish_shizuku.dex"
 
-ok "rish ready"
-
-if ! "$RISH" -c 'id' >/dev/null 2>&1; then
-  warn "Shizuku is not running"
-fi
-
-exit 0
+ok "rish installed successfully"
