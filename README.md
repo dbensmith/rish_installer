@@ -40,14 +40,14 @@ After installation, simply execute:
 ```bash
 rish
 ```
-**Note:**  
-rish works through Shizuku, which provides ADB-like permissions. Make sure Shizuku is running and authorized.
+>[!NOTE]
+>rish works through Shizuku, which provides ADB-like permissions. Make sure Shizuku is running and authorized.
 
 ## Benefits
 - Saves time by automating the manual installation process.
 - Lets you run `rish` directly in Termux instead of `~/rish`.
 - Reduces mistakes from manual extraction and setup.
 
-## Important Notes
-- This script is designed specifically for Termux. However, you can try installing it on other devices (provided they are on Android, and I cannot guarantee it will work correctly with others terminals).
-- You must authorize Shizuku before using `rish`.
+>[!NOTE]
+>- This script is designed specifically for Termux. However, you can try installing it on other devices (provided they are on Android, and I cannot guarantee it will work correctly with others terminals).
+>- You must authorize Shizuku before using `rish`.
