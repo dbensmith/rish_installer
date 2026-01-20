@@ -49,5 +49,5 @@ rish works through Shizuku, which provides ADB-like permissions. Make sure Shizu
 - Reduces mistakes from manual extraction and setup.
 
 ## Important Notes
-- This script is designed specifically for Termux.
+- This script is designed specifically for Termux. However, you can try installing it on other devices (provided they are on Android, and I cannot guarantee it will work correctly with others terminals).
 - You must authorize Shizuku before using `rish`.
