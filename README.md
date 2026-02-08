@@ -27,7 +27,7 @@ bash -s -- --uninstall < <(curl -fsSL tinyurl.com/rish3266)
 ```
 
 **Requirements:**
-- Termux environment
+- Termux environment (or MT Manager terminal)
 - Internet connection
 
 **The script will handle:**
@@ -49,5 +49,5 @@ rish
 - Reduces mistakes from manual extraction and setup.
 
 >[!NOTE]
->- This script is designed specifically for Termux. However, you can try installing it on other devices (provided they are on Android, and I cannot guarantee it will work correctly with others terminals).
+>- This script is designed specifically for Termux and MT Manager terminal. However, you can try installing it on other terminal emulator (provided they are on Android, and I cannot guarantee it will work correctly with others terminals).
 >- You must authorize Shizuku before using `rish`.
