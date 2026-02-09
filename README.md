@@ -1,4 +1,4 @@
-# Shizuku Rish Installer for Termux
+# Shizuku Rish Installer
 
 Shizuku Rish Installer for Android terminals.
 
