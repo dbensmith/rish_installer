@@ -23,9 +23,9 @@ rish
 ```
 
 >[!NOTE]
->Ensure Shizuku is running and your terminal app is authorized.
+> * Ensure Shizuku is running and your terminal app is authorized.
 >
->You should use the latest version of Shizuku on GitHub, the Play Store version may not work correctly with Rish.
+> * You should use the [latest version](https://github.com/RikkaApps/Shizuku/releases/) of Shizuku on GitHub, the Play Store version may not work correctly with Rish.
 
 ## Requirements
 
