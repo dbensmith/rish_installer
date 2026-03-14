@@ -126,7 +126,7 @@ echo "#!$SH_PATH" > "$TMP_RISH"
 step "Installing rish..." 
 INSTALL_SUCCESS=0
 if $INSTALL_CMD -m755 "$TMP_RISH" "$RISH" 2>/dev/null && \
-   $INSTALL_CMD -m644 "$TMP_SUBDIR/assets/rish_shizuku.dex" "$DEX" 2>/dev/null; then
+   $INSTALL_CMD -m400 "$TMP_SUBDIR/assets/rish_shizuku.dex" "$DEX" 2>/dev/null; then
     ok "Installed to bin directory ($BIN)"
     ln -sf "$RISH" "$HOME/rish" 2>/dev/null
     ln -sf "$DEX" "$HOME/rish_shizuku.dex" 2>/dev/null
@@ -135,7 +135,7 @@ if $INSTALL_CMD -m755 "$TMP_RISH" "$RISH" 2>/dev/null && \
 else
     warn "Cannot write to bin directory. Trying Home directory..."
     if $INSTALL_CMD -m755 "$TMP_RISH" "$HOME/rish" && \
-       $INSTALL_CMD -m644 "$TMP_SUBDIR/assets/rish_shizuku.dex" "$HOME/rish_shizuku.dex"; then
+       $INSTALL_CMD -m400 "$TMP_SUBDIR/assets/rish_shizuku.dex" "$HOME/rish_shizuku.dex"; then
         ok "Installed to Home."
         msg "Run: $HOME/rish"
     else
