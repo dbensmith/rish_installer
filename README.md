@@ -1,23 +1,28 @@
 # Shizuku Rish Installer for Termux
 
-This fork automates installation of `rish` for Termux and similar Android shells.
-
-## What changed in this fork
-
-- Prefer native tools first.
-- If native tools are missing, use an already-installed `busybox`.
-- On Termux, automatically run `pkg install busybox` or `apt install busybox` if needed.
-- If no tools are available and Termux package install fails, the script exits with a clear error rather than downloading a binary.
-- For local APK extraction, probe `moe.shizuku.privileged.api` (compatible with official Shizuku and forks that keep the same package name, including thedjchi/Shizuku).
-- For online fallback, check `thedjchi/Shizuku` releases first, then `RikkaApps/Shizuku`.
-- No bundled BusyBox binaries in this repo.
+Automatically extracts `rish` and `rish_shizuku.dex` from an installed Shizuku APK
+and installs them into Termux so you can run `rish` directly from the shell.
 
 ## Requirements
 
-- Termux (recommended) or any Android shell with `bash` and `curl`
-- Shizuku or a compatible fork (e.g. [thedjchi/Shizuku](https://github.com/thedjchi/Shizuku)) installed and running
+- [Termux](https://github.com/termux/termux-app) (or any Android shell with `bash` and `curl`)
+- [Shizuku](https://github.com/RikkaApps/Shizuku) or a compatible fork
+  (e.g. [thedjchi/Shizuku](https://github.com/thedjchi/Shizuku)) installed and running on the device
+- Optional: [ADB wireless debugging](https://developer.android.com/tools/adb#wireless-android11-command-line)
+  already enabled and authorized (used as a fallback APK probe method)
 
 ## Install
+
+Save the script to a file first — this is the recommended method and avoids a known
+behavior where `adb` can consume the script stream when piped directly into `bash`:
+
+```sh
+curl -fsSL -o /tmp/rish_installer.sh \
+  https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh
+bash /tmp/rish_installer.sh
+```
+
+Alternatively, pipe directly (works when ADB is not used or not installed):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh | bash
@@ -26,38 +31,106 @@ curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_
 ## Uninstall
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh | bash -s -- --uninstall
+curl -fsSL -o /tmp/rish_installer.sh \
+  https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh
+bash /tmp/rish_installer.sh --uninstall
 ```
 
 ## Reinstall
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh | bash -s -- --reinstall
+bash /tmp/rish_installer.sh --reinstall
 ```
 
-## Optional overrides
+## How it works
 
-Specify a different Shizuku fork repo (checked in order):
+The script extracts `rish` and `rish_shizuku.dex` from the Shizuku APK already
+installed on your device, patches the Termux package ID into the `rish` script,
+and installs both files into Termux's bin directory (or `$HOME` as fallback).
+
+### APK probe order
+
+For each discovered Shizuku package the script tries these methods in order:
+
+| # | Method | Notes |
+|---|--------|-------|
+| 1 | `cmd package path` + direct `cp` | Fastest; works when Termux can read `/data/app` |
+| 2 | `pm path` + direct `cp` | Alternate PM command; same copy permission requirement |
+| 3 | `adb shell pm path` + `adb pull` | Used only if `adb` is present and a device is already connected/authorized |
+| 4 | GitHub release download | Last resort; downloads from `thedjchi/Shizuku` then `RikkaApps/Shizuku` |
+
+Package candidates are discovered automatically by scanning all installed packages
+for names containing `shizuku`, so any installed fork is found without configuration.
+
+### Progress stages
+
+```
+[tools]   — check/acquire unzip, sed, grep, install
+[probe]   — scan installed packages; try each APK method
+[fetch]   — online download (last resort only)
+[extract] — unpack assets/rish and assets/rish_shizuku.dex
+[install] — write files to bin or $HOME
+[verify]  — confirm both files exist and rish is executable
+[done]    — printed only after verification passes
+```
+
+## Options
+
+| Flag | Description |
+|------|-------------|
+| `--reinstall` | Replace an existing installation |
+| `--uninstall` | Remove rish and rish_shizuku.dex |
+| `--no-download` | Fail if no local/ADB APK is found instead of downloading |
+| `--repo <owner/repo>` | Add a GitHub repo to check for releases (repeatable) |
+| `--apk-package <name>` | Add a package name to probe locally (repeatable) |
+
+Example — explicit repo order and package override:
 
 ```sh
-bash rish_installer.sh --repo thedjchi/Shizuku --repo RikkaApps/Shizuku
+bash /tmp/rish_installer.sh \
+  --repo thedjchi/Shizuku \
+  --repo RikkaApps/Shizuku \
+  --apk-package moe.shizuku.privileged.api
 ```
 
-Specify an additional APK package name to probe locally:
+## Troubleshooting
+
+**Script stops after ADB pull with no output**
+
+This happens when running `curl ... | bash` and `adb shell` consumes the remaining
+script from stdin. Use the saved-file install method instead:
 
 ```sh
-bash rish_installer.sh --apk-package moe.shizuku.privileged.api
+curl -fsSL -o /tmp/rish_installer.sh \
+  https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh
+bash /tmp/rish_installer.sh
 ```
 
-## Missing tools
+**`Required tools missing`**
 
-If the script exits with `Required tools missing`, install BusyBox manually:
+Install BusyBox manually then re-run:
 
 ```sh
 pkg install busybox
+bash /tmp/rish_installer.sh
 ```
 
-Then re-run the installer.
+**`No local/ADB Shizuku APK found`**
+
+Shizuku (or a compatible fork) must be installed on the device before running this
+script. Install it from [GitHub](https://github.com/RikkaApps/Shizuku/releases) or
+[F-Droid](https://f-droid.org/en/packages/moe.shizuku.privileged.api/) first.
+
+## What changed from upstream
+
+- Auto-discover any installed Shizuku fork by scanning all installed packages
+- Three local probe methods per package before falling back to network
+- ADB-assisted APK pull when local copy is permission-denied
+- `--no-download` flag to block network fallback
+- All `adb` calls redirect stdin from `/dev/null` to prevent pipe consumption
+- Online fallback checks `thedjchi/Shizuku` before `RikkaApps/Shizuku`
+- Strict pipeline: `[extract] → [install] → [verify] → [done]`
+- No bundled BusyBox binaries in this repo
 
 ## Credits
 

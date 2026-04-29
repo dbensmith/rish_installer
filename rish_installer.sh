@@ -143,9 +143,9 @@ ensure_tools(){
   if is_termux; then
     stage "tools" "Installing busybox via Termux package manager"
     if command -v pkg >/dev/null 2>&1; then
-      pkg install -y busybox >/dev/null 2>&1 || true
+      pkg install -y busybox </dev/null >/dev/null 2>&1 || true
     elif command -v apt >/dev/null 2>&1; then
-      apt install -y busybox >/dev/null 2>&1 || true
+      apt install -y busybox </dev/null >/dev/null 2>&1 || true
     fi
     if command -v busybox >/dev/null 2>&1; then
       use_busybox "busybox"
@@ -160,26 +160,27 @@ ensure_tools(){
 # ---------------------------------------------------------------------------
 # ADB helpers
 # ---------------------------------------------------------------------------
+# IMPORTANT: every adb invocation redirects stdin from /dev/null.
+# When this script is piped into bash (curl ... | bash), child processes
+# inherit the pipe as stdin. adb shell will consume the remaining script
+# content from that pipe unless we close its stdin explicitly.
 
-# Returns 0 only if adb is present AND a device is already connected/authorized.
-# Uses a short timeout so we never stall if ADB is absent or the daemon is cold.
 adb_connected(){
   command -v adb >/dev/null 2>&1 || return 1
   local devices
-  devices="$(adb devices -l 2>/dev/null)" || return 1
-  # "adb devices" always prints the header line; a connected device adds >=1 more.
+  devices="$(adb devices -l </dev/null 2>/dev/null)" || return 1
+  # Header is always present; a connected device adds at least one more line.
   echo "$devices" | grep -qvE '(^List of devices|^$|^\s*$)' || return 1
 }
 
-# Resolve an APK path for $1 via ADB shell, then pull it into $TMP_SUBDIR/app.apk.
-# Returns 0 on success.
+# Resolve the APK path for $1 via ADB, then pull it into $TMP_SUBDIR/app.apk.
 adb_pull_apk(){
   local pkg_name="$1" apk_path
-  apk_path="$(adb shell pm path "$pkg_name" 2>/dev/null \
+  apk_path="$(adb shell pm path "$pkg_name" </dev/null 2>/dev/null \
     | sed 's/^package://' | head -n1 | tr -d '\r[:space:]')"
   [ -n "$apk_path" ] || return 1
   stage "probe" "  ADB path: $apk_path — pulling"
-  adb pull "$apk_path" "$TMP_SUBDIR/app.apk" >/dev/null 2>&1 || return 1
+  adb pull "$apk_path" "$TMP_SUBDIR/app.apk" </dev/null >/dev/null 2>&1 || return 1
   return 0
 }
 
@@ -198,16 +199,17 @@ discover_shizuku_pkgs(){
       | grep -i shizuku || true
     pm list packages 2>/dev/null | sed 's/^package://' \
       | grep -i shizuku || true
-    # 4. Scan via ADB if connected (catches forks not visible to pm in Termux)
+    # 4. Scan via ADB if connected (catches forks invisible to pm in Termux).
+    #    stdin closed to prevent pipe consumption.
     if adb_connected 2>/dev/null; then
-      adb shell pm list packages 2>/dev/null | sed 's/^package://' \
-        | grep -i shizuku || true
+      adb shell pm list packages </dev/null 2>/dev/null \
+        | sed 's/^package://' | grep -i shizuku || true
     fi
   } | awk '!seen[$0]++' | grep -v '^$'
 }
 
 # ---------------------------------------------------------------------------
-# Local APK probe (direct cp, then ADB pull as fallback per package)
+# Local APK probe — three methods per package before giving up
 # ---------------------------------------------------------------------------
 
 extract_local(){
@@ -245,7 +247,7 @@ extract_local(){
       warn "  Direct copy failed (permission denied) — trying ADB pull"
     fi
 
-    # Method 3: ADB pull (only when a device is already connected)
+    # Method 3: ADB pull (stdin closed — see note at top of ADB helpers)
     if [ "$adb_ok" = true ]; then
       stage "probe" "  Attempting ADB pull for $pkg_name"
       if adb_pull_apk "$pkg_name"; then
@@ -262,7 +264,7 @@ extract_local(){
 }
 
 # ---------------------------------------------------------------------------
-# Online fallback (last resort)
+# Online fallback — last resort only
 # ---------------------------------------------------------------------------
 
 find_release_apk(){
@@ -316,7 +318,7 @@ extract_assets(){
 }
 
 patch_rish(){
-  stage "extract" "Patching rish shebang and package name"
+  stage "extract" "Patching rish shebang and package name ($PKG)"
   local tmp="$TMP_SUBDIR/rish"
   printf '#!%s\n' "$(command -v sh)" > "$tmp"
   $GREP_CMD -v '^#' "$TMP_SUBDIR/assets/rish" >> "$tmp"
