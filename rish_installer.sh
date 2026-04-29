@@ -12,36 +12,25 @@ while [ "$#" -gt 0 ]; do
     --reinstall)   ACTION="reinstall" ;;
     --no-download) ALLOW_DOWNLOAD=false ;;
     --repo)
-      shift
-      [ "$#" -gt 0 ] || { echo "missing value for --repo" >&2; exit 1; }
-      SHIZUKU_REPOS+=("$1")
-      ;;
+      shift; [ "$#" -gt 0 ] || { echo "missing value for --repo" >&2; exit 1; }
+      SHIZUKU_REPOS+=("$1") ;;
     --apk-package)
-      shift
-      [ "$#" -gt 0 ] || { echo "missing value for --apk-package" >&2; exit 1; }
-      APK_PACKAGES+=("$1")
-      ;;
+      shift; [ "$#" -gt 0 ] || { echo "missing value for --apk-package" >&2; exit 1; }
+      APK_PACKAGES+=("$1") ;;
     *) ;;
   esac
   shift
 done
 
-if [ "${#SHIZUKU_REPOS[@]}" -eq 0 ]; then
-  SHIZUKU_REPOS=("thedjchi/Shizuku" "RikkaApps/Shizuku")
-fi
-
-# Well-known Shizuku package names; discover_shizuku_pkgs() adds any others
-# found installed on the device.
+[ "${#SHIZUKU_REPOS[@]}" -eq 0 ] && SHIZUKU_REPOS=("thedjchi/Shizuku" "RikkaApps/Shizuku")
 DEFAULT_PACKAGES=("moe.shizuku.privileged.api")
 
 if [ -t 2 ]; then
-  C0='\033[0m'; CR='\033[31m'; CG='\033[32m'; CY='\033[33m'
-  CB='\033[34m'; CC='\033[36m'
+  C0='\033[0m' CR='\033[31m' CG='\033[32m' CY='\033[33m' CB='\033[34m' CC='\033[36m'
 else
-  C0=''; CR=''; CG=''; CY=''; CB=''; CC=''
+  C0='' CR='' CG='' CY='' CB='' CC=''
 fi
 
-# All output goes to stderr — nothing can pollute command substitutions.
 msg(){   echo -e "${CB}[i]${C0} $*" >&2; }
 ok(){    echo -e "${CG}[+]${C0} $*" >&2; }
 warn(){  echo -e "${CY}[!]${C0} $*" >&2; }
@@ -52,40 +41,23 @@ cleanup(){ rm -rf "${TMP_SUBDIR:-}"; }
 trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
-# Environment detection
+# Environment
 # ---------------------------------------------------------------------------
 
 detect_pkg(){
-  local p="${PREFIX:-}"
-  [ -z "$p" ] && p="$(pwd)"
-  if [[ "$p" == /data/data/* ]]; then
-    echo "${p#/data/data/}" | cut -d/ -f1; return
-  fi
-  if [[ "$p" == /data/user/* ]]; then
-    echo "$p" | cut -d/ -f5; return
-  fi
-  if [ -n "${HOME:-}" ]; then
-    if [[ "$HOME" == /data/data/* ]]; then
-      echo "${HOME#/data/data/}" | cut -d/ -f1; return
-    fi
-    if [[ "$HOME" == /data/user/* ]]; then
-      echo "$HOME" | cut -d/ -f5; return
-    fi
-  fi
+  local p
+  for p in "${PREFIX:-}" "${HOME:-}"; do
+    [[ "$p" == /data/data/* ]] && { echo "${p#/data/data/}" | cut -d/ -f1; return; }
+    [[ "$p" == /data/user/* ]] && { echo "$p" | cut -d/ -f5; return; }
+  done
   echo "unknown"
-}
-
-is_termux(){
-  case "${PREFIX:-}" in */com.termux/*) return 0 ;; esac
-  case "${HOME:-}"   in */com.termux/*) return 0 ;; esac
-  [ "$(detect_pkg 2>/dev/null || true)" = "com.termux" ]
 }
 
 PKG="$(detect_pkg)"
 [ "$PKG" = "unknown" ] && err "Failed to detect terminal package name"
+[ "$PKG" = "com.termux" ] && IS_TERMUX=true || IS_TERMUX=false
 
-BIN_PATH="$(command -v bash 2>/dev/null || true)"
-[ -z "$BIN_PATH" ] && err "bash not found"
+BIN_PATH="$(command -v bash 2>/dev/null)" || err "bash not found"
 BIN="$(dirname "$BIN_PATH")"
 RISH="$BIN/rish"
 DEX="$BIN/rish_shizuku.dex"
@@ -97,286 +69,218 @@ DEX="$BIN/rish_shizuku.dex"
 if [ "$ACTION" = "uninstall" ]; then
   rm -f "$RISH" "$DEX" "$HOME/rish" "$HOME/rish_shizuku.dex"
   find "$HOME" -maxdepth 1 -type l -name 'rish*' -delete 2>/dev/null || true
-  ok "rish uninstalled"
-  exit 0
+  ok "rish uninstalled"; exit 0
 fi
 
 if [ -f "$RISH" ] && [ "$ACTION" != "reinstall" ]; then
-  warn "rish is already installed at $RISH — use --reinstall to replace"
-  exit 0
+  warn "rish already installed at $RISH — use --reinstall to replace"; exit 0
 fi
 
-BASE_TMPDIR="${TMPDIR:-/tmp}"
-TMP_SUBDIR="$(mktemp -d "$BASE_TMPDIR/rish.XXXXXX")"
+TMP_SUBDIR="$(mktemp -d "${TMPDIR:-/tmp}/rish.XXXXXX")"
 APK_SOURCE=""
 
 # ---------------------------------------------------------------------------
-# Tool detection
+# Tools
 # ---------------------------------------------------------------------------
 
 UNZIP_CMD="" SED_CMD="" GREP_CMD="" INSTALL_CMD=""
 
-use_busybox(){
-  UNZIP_CMD="$1 unzip"; SED_CMD="$1 sed"
-  GREP_CMD="$1 grep";   INSTALL_CMD="$1 install"
-}
-
-have_native_tools(){
-  local t
-  for t in unzip sed grep install; do
+use_busybox(){ UNZIP_CMD="$1 unzip"; SED_CMD="$1 sed"; GREP_CMD="$1 grep"; INSTALL_CMD="$1 install"; }
+have_tools(){
+  local t; for t in unzip sed grep install; do
     command -v "$t" >/dev/null 2>&1 || return 1
   done
 }
 
 ensure_tools(){
   stage "tools" "Checking required tools"
-  if have_native_tools; then
+  if have_tools; then
     UNZIP_CMD="unzip"; SED_CMD="sed"; GREP_CMD="grep"; INSTALL_CMD="install"
-    ok "Native tools available"
-    return 0
+    ok "Native tools available"; return
   fi
   if command -v busybox >/dev/null 2>&1; then
-    use_busybox "busybox"
-    ok "Using installed busybox"
-    return 0
+    use_busybox "busybox"; ok "Using installed busybox"; return
   fi
-  if is_termux; then
-    stage "tools" "Installing busybox via Termux package manager"
-    if command -v pkg >/dev/null 2>&1; then
-      pkg install -y busybox </dev/null >/dev/null 2>&1 || true
-    elif command -v apt >/dev/null 2>&1; then
-      apt install -y busybox </dev/null >/dev/null 2>&1 || true
-    fi
+  if [ "$IS_TERMUX" = true ]; then
+    stage "tools" "Installing busybox via Termux"
+    { command -v pkg >/dev/null 2>&1 && pkg install -y busybox </dev/null >/dev/null 2>&1; } \
+      || { command -v apt >/dev/null 2>&1 && apt install -y busybox </dev/null >/dev/null 2>&1; } \
+      || true
     if command -v busybox >/dev/null 2>&1; then
-      use_busybox "busybox"
-      ok "busybox installed from Termux package"
-      return 0
+      use_busybox "busybox"; ok "busybox installed"; return
     fi
-    warn "Termux busybox package install failed"
+    warn "Termux busybox install failed"
   fi
-  err "Required tools missing (unzip sed grep install). On Termux run: pkg install busybox"
+  err "Required tools missing (unzip sed grep install). On Termux: pkg install busybox"
 }
 
 # ---------------------------------------------------------------------------
-# ADB helpers
+# ADB
+# All adb calls redirect stdin from /dev/null. When this script is saved to
+# a file and executed directly (recommended), this is a no-op. When piped
+# into bash, adb shell would otherwise consume the remaining script from
+# the shared stdin pipe.
 # ---------------------------------------------------------------------------
-# IMPORTANT: every adb invocation redirects stdin from /dev/null.
-# When this script is piped into bash (curl ... | bash), child processes
-# inherit the pipe as stdin. adb shell will consume the remaining script
-# content from that pipe unless we close its stdin explicitly.
 
-adb_connected(){
+ADB_OK=false
+check_adb(){
   command -v adb >/dev/null 2>&1 || return 1
-  local devices
-  devices="$(adb devices -l </dev/null 2>/dev/null)" || return 1
-  # Header is always present; a connected device adds at least one more line.
-  echo "$devices" | grep -qvE '(^List of devices|^$|^\s*$)' || return 1
+  adb devices -l </dev/null 2>/dev/null \
+    | grep -qvE '^(List of devices|[[:space:]]*)$' || return 1
+  ADB_OK=true
 }
 
-# Resolve the APK path for $1 via ADB, then pull it into $TMP_SUBDIR/app.apk.
 adb_pull_apk(){
-  local pkg_name="$1" apk_path
-  apk_path="$(adb shell pm path "$pkg_name" </dev/null 2>/dev/null \
+  local pkg="$1" path
+  path="$(adb shell pm path "$pkg" </dev/null 2>/dev/null \
     | sed 's/^package://' | head -n1 | tr -d '\r[:space:]')"
-  [ -n "$apk_path" ] || return 1
-  stage "probe" "  ADB path: $apk_path — pulling"
-  adb pull "$apk_path" "$TMP_SUBDIR/app.apk" </dev/null >/dev/null 2>&1 || return 1
-  return 0
+  [ -n "$path" ] || return 1
+  stage "probe" "  ADB: $path"
+  adb pull "$path" "$TMP_SUBDIR/app.apk" </dev/null >/dev/null 2>&1
 }
 
 # ---------------------------------------------------------------------------
 # Package discovery
 # ---------------------------------------------------------------------------
 
-discover_shizuku_pkgs(){
+discover_pkgs(){
   {
-    # 1. Caller-supplied overrides
-    printf '%s\n' "${APK_PACKAGES[@]+${APK_PACKAGES[@]}}"
-    # 2. Well-known defaults
+    [ "${#APK_PACKAGES[@]}" -gt 0 ] && printf '%s\n' "${APK_PACKAGES[@]}"
     printf '%s\n' "${DEFAULT_PACKAGES[@]}"
-    # 3. Scan all installed packages locally
-    cmd package list packages 2>/dev/null | sed 's/^package://' \
-      | grep -i shizuku || true
-    pm list packages 2>/dev/null | sed 's/^package://' \
-      | grep -i shizuku || true
-    # 4. Scan via ADB if connected (catches forks invisible to pm in Termux).
-    #    stdin closed to prevent pipe consumption.
-    if adb_connected 2>/dev/null; then
+    cmd package list packages 2>/dev/null | sed 's/^package://' | grep -i shizuku || true
+    pm list packages        2>/dev/null | sed 's/^package://' | grep -i shizuku || true
+    [ "$ADB_OK" = true ] && \
       adb shell pm list packages </dev/null 2>/dev/null \
         | sed 's/^package://' | grep -i shizuku || true
-    fi
   } | awk '!seen[$0]++' | grep -v '^$'
 }
 
 # ---------------------------------------------------------------------------
-# Local APK probe — three methods per package before giving up
+# Local APK probe
 # ---------------------------------------------------------------------------
 
+# Resolve APK path for $1 via cmd package path then pm path.
+resolve_path(){
+  local p
+  p="$(cmd package path "$1" 2>/dev/null | sed 's/^package://' | head -n1 | tr -d '[:space:]')"
+  [ -n "$p" ] || \
+    p="$(pm path "$1" 2>/dev/null | sed 's/^package://' | head -n1 | tr -d '[:space:]')"
+  printf '%s' "$p"
+}
+
+try_copy(){ cp "$1" "$TMP_SUBDIR/app.apk" 2>/dev/null; }
+
 extract_local(){
-  local pkg_name apk_path
-  local adb_ok=false
-  adb_connected 2>/dev/null && adb_ok=true
-
-  stage "probe" "Searching for installed Shizuku APK on device"
-  while IFS= read -r pkg_name; do
-    stage "probe" "Trying package: $pkg_name"
-
-    # Method 1: cmd package path + direct cp
-    apk_path="$(cmd package path "$pkg_name" 2>/dev/null \
-      | sed 's/^package://' | head -n1 | tr -d '[:space:]')"
-    if [ -n "$apk_path" ]; then
-      stage "probe" "  Found via cmd: $apk_path"
-      if cp "$apk_path" "$TMP_SUBDIR/app.apk" 2>/dev/null; then
-        ok "Obtained local APK from $pkg_name (cmd package path)"
-        APK_SOURCE="local:${pkg_name}"
-        return 0
+  local pkg path
+  stage "probe" "Searching for installed Shizuku APK"
+  while IFS= read -r pkg; do
+    stage "probe" "Trying: $pkg"
+    path="$(resolve_path "$pkg")"
+    if [ -n "$path" ]; then
+      stage "probe" "  Path: $path"
+      if try_copy "$path"; then
+        ok "Local APK from $pkg"; APK_SOURCE="local:$pkg"; return 0
       fi
-      warn "  Direct copy failed (permission denied) — trying pm path"
+      warn "  Copy denied — trying ADB"
     fi
-
-    # Method 2: pm path + direct cp
-    apk_path="$(pm path "$pkg_name" 2>/dev/null \
-      | sed 's/^package://' | head -n1 | tr -d '[:space:]')"
-    if [ -n "$apk_path" ]; then
-      stage "probe" "  Found via pm: $apk_path"
-      if cp "$apk_path" "$TMP_SUBDIR/app.apk" 2>/dev/null; then
-        ok "Obtained local APK from $pkg_name (pm path)"
-        APK_SOURCE="local:${pkg_name}"
-        return 0
-      fi
-      warn "  Direct copy failed (permission denied) — trying ADB pull"
+    if [ "$ADB_OK" = true ] && adb_pull_apk "$pkg"; then
+      ok "APK via ADB from $pkg"; APK_SOURCE="adb:$pkg"; return 0
     fi
-
-    # Method 3: ADB pull (stdin closed — see note at top of ADB helpers)
-    if [ "$adb_ok" = true ]; then
-      stage "probe" "  Attempting ADB pull for $pkg_name"
-      if adb_pull_apk "$pkg_name"; then
-        ok "Obtained APK via ADB from $pkg_name"
-        APK_SOURCE="adb:${pkg_name}"
-        return 0
-      fi
-      warn "  ADB pull failed for $pkg_name"
-    fi
-
-    warn "  $pkg_name: all local methods failed"
-  done < <(discover_shizuku_pkgs)
+    warn "  $pkg: all local methods failed"
+  done < <(discover_pkgs)
   return 1
 }
 
 # ---------------------------------------------------------------------------
-# Online fallback — last resort only
+# Online fallback
 # ---------------------------------------------------------------------------
 
-find_release_apk(){
-  local repo api url
+find_release_url(){
+  local repo url
   for repo in "${SHIZUKU_REPOS[@]}"; do
-    stage "fetch" "Checking GitHub releases: $repo"
-    api="https://api.github.com/repos/${repo}/releases/latest"
-    url="$(curl -fsSL "$api" \
+    stage "fetch" "Checking releases: $repo"
+    url="$(curl -fsSL "https://api.github.com/repos/${repo}/releases/latest" \
       | grep -oE '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]+\.apk"' \
-      | head -n1 \
-      | grep -oE '"[^"]+\.apk"$' \
-      | tr -d '"')"
-    if [ -n "$url" ]; then
-      printf '%s\n' "$url"
-      return 0
-    fi
-    warn "  No APK asset found in $repo latest release"
+      | head -n1 | grep -oE '"[^"]+\.apk"$' | tr -d '"')"
+    [ -n "$url" ] && { printf '%s' "$url"; return 0; }
+    warn "  No APK in $repo latest release"
   done
   return 1
 }
 
 fetch_apk(){
-  if [ "$ALLOW_DOWNLOAD" = false ]; then
-    err "No local/ADB Shizuku APK found and --no-download is set"
-  fi
-  stage "fetch" "All local probes failed — last resort: GitHub release download"
+  [ "$ALLOW_DOWNLOAD" = true ] \
+    || err "No local/ADB APK found and --no-download is set"
+  stage "fetch" "All local probes failed — downloading from GitHub"
   local url
-  url="$(find_release_apk)" \
-    || err "Could not locate a Shizuku APK release. Install Shizuku first, or check network."
-  stage "fetch" "Downloading APK"
-  curl -fsSL -o "$TMP_SUBDIR/app.apk" "$url" \
-    || err "APK download failed"
+  url="$(find_release_url)" \
+    || err "No Shizuku release found. Install Shizuku first or check network."
+  curl -fsSL -o "$TMP_SUBDIR/app.apk" "$url" || err "APK download failed"
   APK_SOURCE="downloaded:$(printf '%s' "$url" \
     | grep -oE 'github\.com/[^/]+/[^/]+' | head -n1 | cut -d/ -f2-3)"
-  ok "APK downloaded (source: $APK_SOURCE)"
+  ok "Downloaded $APK_SOURCE"
 }
 
 # ---------------------------------------------------------------------------
-# Asset extraction and patching
+# Extract, patch, install, verify
 # ---------------------------------------------------------------------------
 
 extract_assets(){
-  stage "extract" "Unpacking rish assets from APK"
+  stage "extract" "Unpacking assets"
   $UNZIP_CMD -qq "$TMP_SUBDIR/app.apk" -d "$TMP_SUBDIR" \
-    || err "APK extraction failed — archive may be corrupt"
-  [ -f "$TMP_SUBDIR/assets/rish" ] \
-    || err "assets/rish not found in APK — is this a Shizuku APK?"
-  [ -f "$TMP_SUBDIR/assets/rish_shizuku.dex" ] \
-    || err "assets/rish_shizuku.dex not found in APK"
-  ok "Assets extracted (rish + rish_shizuku.dex)"
+    || err "APK extraction failed — corrupt archive?"
+  [ -f "$TMP_SUBDIR/assets/rish" ]             || err "assets/rish not in APK"
+  [ -f "$TMP_SUBDIR/assets/rish_shizuku.dex" ] || err "assets/rish_shizuku.dex not in APK"
+  ok "Extracted rish + rish_shizuku.dex"
 }
 
 patch_rish(){
-  stage "extract" "Patching rish shebang and package name ($PKG)"
-  local tmp="$TMP_SUBDIR/rish"
-  printf '#!%s\n' "$(command -v sh)" > "$tmp"
-  $GREP_CMD -v '^#' "$TMP_SUBDIR/assets/rish" >> "$tmp"
-  $SED_CMD -i "s/PKG/$PKG/g" "$tmp"
-  ok "rish patched for package: $PKG"
+  stage "extract" "Patching rish for $PKG"
+  { printf '#!%s\n' "$(command -v sh)"
+    $GREP_CMD -v '^#' "$TMP_SUBDIR/assets/rish"
+  } > "$TMP_SUBDIR/rish"
+  $SED_CMD -i "s/PKG/$PKG/g" "$TMP_SUBDIR/rish"
+  ok "rish patched"
 }
 
-# ---------------------------------------------------------------------------
-# Install
-# ---------------------------------------------------------------------------
-
 do_install(){
-  stage "install" "Installing rish to $BIN"
+  stage "install" "Installing to $BIN"
   if $INSTALL_CMD -m755 "$TMP_SUBDIR/rish" "$RISH" 2>/dev/null && \
      $INSTALL_CMD -m400 "$TMP_SUBDIR/assets/rish_shizuku.dex" "$DEX" 2>/dev/null; then
     ln -sf "$RISH" "$HOME/rish" 2>/dev/null || true
     ln -sf "$DEX"  "$HOME/rish_shizuku.dex" 2>/dev/null || true
     ok "Installed to $BIN"
   else
-    stage "install" "Cannot write to $BIN — falling back to \$HOME"
+    stage "install" "Cannot write to $BIN — using \$HOME"
     $INSTALL_CMD -m755 "$TMP_SUBDIR/rish" "$HOME/rish" \
-      || err "Failed to install rish to $HOME"
+      || err "Failed to install rish"
     $INSTALL_CMD -m400 "$TMP_SUBDIR/assets/rish_shizuku.dex" "$HOME/rish_shizuku.dex" \
-      || err "Failed to install rish_shizuku.dex to $HOME"
-    # Update paths so verify_install checks the correct locations.
-    RISH="$HOME/rish"
-    DEX="$HOME/rish_shizuku.dex"
+      || err "Failed to install rish_shizuku.dex"
+    RISH="$HOME/rish"; DEX="$HOME/rish_shizuku.dex"
     ok "Installed to $HOME"
   fi
 }
 
-# ---------------------------------------------------------------------------
-# Verification
-# ---------------------------------------------------------------------------
-
 verify_install(){
-  stage "verify" "Verifying installation"
-  [ -f "$RISH" ] || err "rish not found at $RISH after install"
-  [ -x "$RISH" ] || err "rish at $RISH is not executable"
-  [ -f "$DEX"  ] || err "rish_shizuku.dex not found at $DEX after install"
-  ok "rish installed and executable: $RISH"
-  ok "rish_shizuku.dex present:      $DEX"
+  stage "verify" "Verifying"
+  [ -f "$RISH" ] || err "rish missing at $RISH"
+  [ -x "$RISH" ] || err "rish not executable at $RISH"
+  [ -f "$DEX"  ] || err "rish_shizuku.dex missing at $DEX"
+  ok "rish:             $RISH"
+  ok "rish_shizuku.dex: $DEX"
 }
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
+check_adb 2>/dev/null || true
 ensure_tools
-
-if ! extract_local; then
-  fetch_apk
-fi
-
+extract_local || fetch_apk
 extract_assets
 patch_rish
 do_install
 verify_install
 
-stage "done" "Completed successfully (source: ${APK_SOURCE})"
+stage "done" "Completed (source: ${APK_SOURCE})"
 msg "Run: rish"

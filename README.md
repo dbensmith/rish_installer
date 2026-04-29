@@ -13,33 +13,31 @@ and installs them into Termux so you can run `rish` directly from the shell.
 
 ## Install
 
-Save the script to a file first — this is the recommended method and avoids a known
-behavior where `adb` can consume the script stream when piped directly into `bash`:
-
 ```sh
-curl -fsSL -o /tmp/rish_installer.sh \
-  https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh
-bash /tmp/rish_installer.sh
+curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh -o rish_installer.sh \
+  && chmod +x rish_installer.sh \
+  && bash rish_installer.sh \
+  && rm rish_installer.sh
 ```
 
-Alternatively, pipe directly (works when ADB is not used or not installed):
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh | bash
-```
+> **Note:** Piping directly into `bash` (`curl ... | bash`) works when ADB is not
+> involved, but if ADB is present and connected, `adb shell` will consume the
+> remaining script from stdin. The one-liner above avoids this entirely.
 
 ## Uninstall
 
 ```sh
-curl -fsSL -o /tmp/rish_installer.sh \
-  https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh
-bash /tmp/rish_installer.sh --uninstall
+curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh -o rish_installer.sh \
+  && bash rish_installer.sh --uninstall \
+  && rm rish_installer.sh
 ```
 
 ## Reinstall
 
 ```sh
-bash /tmp/rish_installer.sh --reinstall
+curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh -o rish_installer.sh \
+  && bash rish_installer.sh --reinstall \
+  && rm rish_installer.sh
 ```
 
 ## How it works
@@ -50,14 +48,15 @@ and installs both files into Termux's bin directory (or `$HOME` as fallback).
 
 ### APK probe order
 
-For each discovered Shizuku package the script tries these methods in order:
+For each discovered Shizuku package the script tries these methods in order,
+moving to the next only on failure:
 
 | # | Method | Notes |
 |---|--------|-------|
-| 1 | `cmd package path` + direct `cp` | Fastest; works when Termux can read `/data/app` |
-| 2 | `pm path` + direct `cp` | Alternate PM command; same copy permission requirement |
-| 3 | `adb shell pm path` + `adb pull` | Used only if `adb` is present and a device is already connected/authorized |
-| 4 | GitHub release download | Last resort; downloads from `thedjchi/Shizuku` then `RikkaApps/Shizuku` |
+| 1 | `cmd package path` + `cp` | Fastest; works when Termux can read `/data/app` |
+| 2 | `pm path` + `cp` | Alternate PM command; same copy permission requirement |
+| 3 | `adb shell pm path` + `adb pull` | Only if `adb` is present and already connected |
+| 4 | GitHub release download | Last resort — `thedjchi/Shizuku` then `RikkaApps/Shizuku` |
 
 Package candidates are discovered automatically by scanning all installed packages
 for names containing `shizuku`, so any installed fork is found without configuration.
@@ -68,7 +67,7 @@ for names containing `shizuku`, so any installed fork is found without configura
 [tools]   — check/acquire unzip, sed, grep, install
 [probe]   — scan installed packages; try each APK method
 [fetch]   — online download (last resort only)
-[extract] — unpack assets/rish and assets/rish_shizuku.dex
+[extract] — unpack assets/rish and assets/rish_shizuku.dex; patch PKG
 [install] — write files to bin or $HOME
 [verify]  — confirm both files exist and rish is executable
 [done]    — printed only after verification passes
@@ -87,7 +86,7 @@ for names containing `shizuku`, so any installed fork is found without configura
 Example — explicit repo order and package override:
 
 ```sh
-bash /tmp/rish_installer.sh \
+bash rish_installer.sh \
   --repo thedjchi/Shizuku \
   --repo RikkaApps/Shizuku \
   --apk-package moe.shizuku.privileged.api
@@ -95,16 +94,10 @@ bash /tmp/rish_installer.sh \
 
 ## Troubleshooting
 
-**Script stops after ADB pull with no output**
+**Script stops after ADB pull with no further output**
 
-This happens when running `curl ... | bash` and `adb shell` consumes the remaining
-script from stdin. Use the saved-file install method instead:
-
-```sh
-curl -fsSL -o /tmp/rish_installer.sh \
-  https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh
-bash /tmp/rish_installer.sh
-```
+You ran it via `curl ... | bash`. Use the one-liner install command above instead,
+which saves the script to a file before executing it.
 
 **`Required tools missing`**
 
@@ -112,7 +105,7 @@ Install BusyBox manually then re-run:
 
 ```sh
 pkg install busybox
-bash /tmp/rish_installer.sh
+bash rish_installer.sh
 ```
 
 **`No local/ADB Shizuku APK found`**
