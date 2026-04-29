@@ -5,11 +5,17 @@ This fork automates installation of `rish` for Termux and similar Android shells
 ## What changed in this fork
 
 - Prefer native tools first.
-- If native tools are missing, prefer an installed `busybox`.
-- On Termux, try `pkg install busybox` or `apt install busybox` before downloading a BusyBox fallback.
+- If native tools are missing, use an already-installed `busybox`.
+- On Termux, automatically run `pkg install busybox` or `apt install busybox` if needed.
+- If no tools are available and Termux package install fails, the script exits with a clear error rather than downloading a binary.
 - For local APK extraction, probe `moe.shizuku.privileged.api` (compatible with official Shizuku and forks that keep the same package name, including thedjchi/Shizuku).
 - For online fallback, check `thedjchi/Shizuku` releases first, then `RikkaApps/Shizuku`.
-- All installer and BusyBox fallback URLs now point to `dbensmith/rish_installer`.
+- No bundled BusyBox binaries in this repo.
+
+## Requirements
+
+- Termux (recommended) or any Android shell with `bash` and `curl`
+- Shizuku or a compatible fork (e.g. [thedjchi/Shizuku](https://github.com/thedjchi/Shizuku)) installed and running
 
 ## Install
 
@@ -43,8 +49,16 @@ Specify an additional APK package name to probe locally:
 bash rish_installer.sh --apk-package moe.shizuku.privileged.api
 ```
 
-## Notes
+## Missing tools
 
-- If you publish a short URL, ensure it redirects to this fork's raw script URL, not the upstream repository.
-- The BusyBox fallback downloads from this fork's `busybox/` directory, so keep it in sync with the upstream.
-- Based on [merbah3266/rish_installer](https://github.com/merbah3266/rish_installer).
+If the script exits with `Required tools missing`, install BusyBox manually:
+
+```sh
+pkg install busybox
+```
+
+Then re-run the installer.
+
+## Credits
+
+Based on [merbah3266/rish_installer](https://github.com/merbah3266/rish_installer).

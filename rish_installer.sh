@@ -4,8 +4,6 @@ set -euo pipefail
 ACTION="install"
 SHIZUKU_REPOS=()
 APK_PACKAGES=("moe.shizuku.privileged.api")
-INSTALLER_REPO="dbensmith/rish_installer"
-INSTALLER_BRANCH="main"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -20,16 +18,6 @@ while [ "$#" -gt 0 ]; do
       shift
       [ "$#" -gt 0 ] || { echo "missing value for --apk-package" >&2; exit 1; }
       APK_PACKAGES+=("$1")
-      ;;
-    --installer-repo)
-      shift
-      [ "$#" -gt 0 ] || { echo "missing value for --installer-repo" >&2; exit 1; }
-      INSTALLER_REPO="$1"
-      ;;
-    --installer-branch)
-      shift
-      [ "$#" -gt 0 ] || { echo "missing value for --installer-branch" >&2; exit 1; }
-      INSTALLER_BRANCH="$1"
       ;;
     *) ;;
   esac
@@ -150,7 +138,7 @@ ensure_tools(){
   fi
 
   if is_termux; then
-    step "trying Termux busybox package"
+    step "installing busybox via Termux"
     if command -v pkg >/dev/null 2>&1; then
       pkg install -y busybox >/dev/null 2>&1 || true
     elif command -v apt >/dev/null 2>&1; then
@@ -161,26 +149,10 @@ ensure_tools(){
       ok "busybox installed from Termux package"
       return 0
     fi
-    warn "Termux busybox package unavailable or install failed"
+    warn "Termux busybox package install failed"
   fi
 
-  step "downloading busybox fallback"
-  local arch url bb
-  arch="$(uname -m)"
-  case "$arch" in
-    aarch64*|arm64*|armv8*) arch="arm64" ;;
-    arm*|armv7*|armhf) arch="arm" ;;
-    x86_64*|amd64*) arch="x86_64" ;;
-    i386|i486|i586|i686|x86) arch="x86" ;;
-    *) err "unsupported arch: $arch" ;;
-  esac
-  url="https://raw.githubusercontent.com/${INSTALLER_REPO}/${INSTALLER_BRANCH}/busybox/${arch}/busybox"
-  bb="$TMP_SUBDIR/busybox"
-  curl -fsSL "$url" -o "$bb" || err "busybox download failed"
-  chmod +x "$bb"
-  "$bb" --help >/dev/null 2>&1 || err "downloaded busybox is invalid"
-  use_busybox "$bb"
-  ok "busybox fallback ready"
+  err "Required tools missing (unzip sed grep install). On Termux run: pkg install busybox"
 }
 
 extract_local(){
@@ -193,7 +165,7 @@ extract_local(){
         ok "using local APK from $pkg_name"
         return 0
       fi
-      warn "found $pkg_name but could not read APK path"
+      warn "found $pkg_name but could not read APK"
     fi
   done
   return 1
@@ -202,7 +174,7 @@ extract_local(){
 find_release_apk(){
   local repo api url
   for repo in "${SHIZUKU_REPOS[@]}"; do
-    step "checking releases for $repo"
+    step "checking releases: $repo"
     api="https://api.github.com/repos/${repo}/releases/latest"
     url="$(curl -fsSL "$api" | sed -n 's/.*"browser_download_url":[[:space:]]*"\([^"]*\.apk\)".*/\1/p' | head -n1)"
     if [ -n "$url" ]; then

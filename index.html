@@ -16,7 +16,7 @@
 </head>
 <body>
   <h1>Shizuku Rish Installer for Termux</h1>
-  <p>Fork of <a href="https://github.com/merbah3266/rish_installer" target="_blank" rel="noopener">merbah3266/rish_installer</a> with Termux and thedjchi/Shizuku support.</p>
+  <p>Fork of <a href="https://github.com/merbah3266/rish_installer" target="_blank" rel="noopener">merbah3266/rish_installer</a> with Termux and thedjchi/Shizuku support. No bundled BusyBox binaries.</p>
 
   <h2>Install</h2>
   <pre><code>curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh | bash</code></pre>
@@ -24,11 +24,15 @@
   <h2>Uninstall</h2>
   <pre><code>curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh | bash -s -- --uninstall</code></pre>
 
+  <h2>Missing tools?</h2>
+  <p>If the script exits with <code>Required tools missing</code>, install BusyBox first:</p>
+  <pre><code>pkg install busybox</code></pre>
+
   <h2>What changed</h2>
   <ul>
-    <li>Preferred tool fallback order: native tools &rarr; installed <code>busybox</code> &rarr; Termux package install &rarr; downloaded BusyBox</li>
-    <li>Preferred release fallback order: <a href="https://github.com/thedjchi/Shizuku" target="_blank" rel="noopener">thedjchi/Shizuku</a> &rarr; <a href="https://github.com/RikkaApps/Shizuku" target="_blank" rel="noopener">RikkaApps/Shizuku</a></li>
-    <li>All URLs now point to <a href="https://github.com/dbensmith/rish_installer" target="_blank" rel="noopener">dbensmith/rish_installer</a></li>
+    <li>Tool fallback order: native tools &rarr; installed <code>busybox</code> &rarr; Termux <code>pkg/apt install busybox</code> &rarr; clear error (no binary download)</li>
+    <li>Release fallback order: <a href="https://github.com/thedjchi/Shizuku" target="_blank" rel="noopener">thedjchi/Shizuku</a> &rarr; <a href="https://github.com/RikkaApps/Shizuku" target="_blank" rel="noopener">RikkaApps/Shizuku</a></li>
+    <li>No bundled BusyBox binaries in this repo</li>
   </ul>
 
   <p class="note">If you publish a short URL, make sure it redirects to this fork&rsquo;s raw script URL, not the upstream repository.</p>
