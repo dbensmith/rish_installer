@@ -28,16 +28,17 @@ if [ "${#SHIZUKU_REPOS[@]}" -eq 0 ]; then
   SHIZUKU_REPOS=("thedjchi/Shizuku" "RikkaApps/Shizuku")
 fi
 
-if [ -t 1 ]; then
+if [ -t 2 ]; then
   C0='\033[0m'; CR='\033[31m'; CG='\033[32m'; CY='\033[33m'; CB='\033[34m'; CC='\033[36m'
 else
   C0=''; CR=''; CG=''; CY=''; CB=''; CC=''
 fi
-msg(){ echo -e "${CB}[i]${C0} $1"; }
-ok(){ echo -e "${CG}[+]${C0} $1"; }
-warn(){ echo -e "${CY}[!]${C0} $1"; }
-err(){ echo -e "${CR}[x]${C0} $1" >&2; exit 1; }
-step(){ echo -e "${CC}==>${C0} $1"; }
+# All logging goes to stderr so none of it can pollute command substitutions.
+msg(){ echo -e "${CB}[i]${C0} $1" >&2; }
+ok(){  echo -e "${CG}[+]${C0} $1" >&2; }
+warn(){ echo -e "${CY}[!]${C0} $1" >&2; }
+err(){  echo -e "${CR}[x]${C0} $1" >&2; exit 1; }
+step(){ echo -e "${CC}==>${C0} $1" >&2; }
 
 cleanup(){ rm -rf "${TMP_SUBDIR:-}"; }
 trap cleanup EXIT
@@ -176,7 +177,12 @@ find_release_apk(){
   for repo in "${SHIZUKU_REPOS[@]}"; do
     step "checking releases: $repo"
     api="https://api.github.com/repos/${repo}/releases/latest"
-    url="$(curl -fsSL "$api" | sed -n 's/.*"browser_download_url":[[:space:]]*"\([^"]*\.apk\)".*/\1/p' | head -n1)"
+    # grep -oE extracts only the URL value; no surrounding JSON text leaks out.
+    url="$(curl -fsSL "$api" \
+      | grep -oE '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]+\.apk"' \
+      | head -n1 \
+      | grep -oE '"[^"]+\.apk"$' \
+      | tr -d '"')"
     if [ -n "$url" ]; then
       printf '%s\n' "$url"
       return 0
