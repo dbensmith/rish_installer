@@ -1,37 +1,50 @@
-# Shizuku Rish Installer
+# Shizuku Rish Installer for Termux
 
-Shizuku Rish Installer for Android terminals.
+This fork automates installation of `rish` for Termux and similar Android shells.
 
-[![zread](https://img.shields.io/badge/Ask_Zread-_.svg?style=flat&color=00b0aa&labelColor=000000&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/merbah3266/rish_installer)
+## What changed in this fork
 
-## Installation
+- Prefer native tools first.
+- If native tools are missing, prefer an installed `busybox`.
+- On Termux, try `pkg install busybox` or `apt install busybox` before downloading a BusyBox fallback.
+- For local APK extraction, probe `moe.shizuku.privileged.api` (compatible with official Shizuku and forks that keep the same package name, including thedjchi/Shizuku).
+- For online fallback, check `thedjchi/Shizuku` releases first, then `RikkaApps/Shizuku`.
+- All installer and BusyBox fallback URLs now point to `dbensmith/rish_installer`.
 
-**To install or reinstall:**
-```
-bash <(curl -fsSL tinyurl.com/rish3266)
-```
-**To uninstall:**
-```
-bash -s -- --uninstall < <(curl -fsSL tinyurl.com/rish3266)
-```
+## Install
 
-## Usage
-
-After installation, simply run:
-```
-rish
+```sh
+curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh | bash
 ```
 
->[!NOTE]
-> * Ensure Shizuku is running and your terminal app is authorized.
->
-> * I recommend using the [latest version](https://github.com/RikkaApps/Shizuku/releases/) of Shizuku on GitHub; the Play Store version may not work correctly with Rish.
+## Uninstall
 
-## Requirements
+```sh
+curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh | bash -s -- --uninstall
+```
 
-*   Any terminal app (It is recommended to use Termux or MT Manager terminal).
-*   Internet connection.
+## Reinstall
 
-## Support
+```sh
+curl -fsSL https://raw.githubusercontent.com/dbensmith/rish_installer/main/rish_installer.sh | bash -s -- --reinstall
+```
 
-If the script does not work correctly, please [open an issue](https://github.com/merbah3266/rish_installer/issues) on the repository page so we can help you.
+## Optional overrides
+
+Specify a different Shizuku fork repo (checked in order):
+
+```sh
+bash rish_installer.sh --repo thedjchi/Shizuku --repo RikkaApps/Shizuku
+```
+
+Specify an additional APK package name to probe locally:
+
+```sh
+bash rish_installer.sh --apk-package moe.shizuku.privileged.api
+```
+
+## Notes
+
+- If you publish a short URL, ensure it redirects to this fork's raw script URL, not the upstream repository.
+- The BusyBox fallback downloads from this fork's `busybox/` directory, so keep it in sync with the upstream.
+- Based on [merbah3266/rish_installer](https://github.com/merbah3266/rish_installer).
